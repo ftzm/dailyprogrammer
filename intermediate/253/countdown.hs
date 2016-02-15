@@ -18,37 +18,55 @@ allCombos' x ys acc = allCombos' (x-1) ys (concatMap (options ys) acc)
 allCombos :: Int -> [String] -> [[String]]
 allCombos x ys = allCombos' x ys [[]]
 
-calc :: [Double] -> [Double] -> [String] -> [String] -> Double -> Maybe Result
-calc [x] usedInts [] usedOps _ = Just (usedInts,usedOps,x)
+calc :: [Double] -> [Double] -> [String] -> [String] -> Double -> [Result]
+calc [x] usedInts [] usedOps _ = []
 calc (x1:x2:xs) usedInts (y:ys) usedOps z
   | y == "+" = checkPass (x1 + x2)
-  | y == "-" = if (x1 - x2) > 0 then checkPass (x1 - x2) else Nothing
+  | y == "-" = if (x1 - x2) > 0 then checkPass (x1 - x2) else []
   | y == "*" = checkPass (x1 * x2)
-  | y == "/" = if fracCheck x1 x2 then checkPass (x1 / x2) else Nothing
-    where checkPass x = if x == z then Just (usedInts++[x2],usedOps++[y],z) else calc (x:xs) (usedInts++[x2]) ys (usedOps++[y]) z
+  | y == "/" = if fracCheck x1 x2 then checkPass (x1 / x2) else []
+    where checkPass x = if abs (x - z) < 10 then (usedInts++[x2],usedOps++[y],x) : nextIter x else nextIter x
           fracCheck x y = ceiling (x/y) == floor (x/y)
+          nextIter x = calc (x:xs) (usedInts++[x2]) ys (usedOps++[y]) z
 
 calculate :: Double -> [String] -> [Double] -> Maybe Result
-calculate z ys (x:xs) = calc (x:xs) [x] ys [] z
+calculate z ys (x:xs) = let results = calc (x:xs) [x] ys [] z
+                        in case results of [] -> Nothing
+                                           [x] -> Just x
+                                           xs -> Just $ bestValue xs z
 
 combine :: [String] -> [String] -> [String]
-combine [] ys = ys
-combine (x:xs) ys = x:combine ys xs
+combine x [] = x
+combine xs ys = ["("]++(combine (init xs) (init ys))++[")"]++[last ys,last xs]
+
 
 prettify :: Result -> [String]
-prettify (x,y,_) = combine (map (show . truncate) x) y
+prettify (x,y,z) = combine (map (show . truncate) x) y ++ ["=",show z]
 
-countdown :: [Double] -> Double -> String
-countdown xs t = unwords $ prettify $ getShortest results
+getResults xs t = catMaybes $ concatMap (zipWith (calculate t) posOps . repeat) $ permutations xs
   where posOps = allCombos (length xs - 1) ops
-        results = filter (\(_,_,z) -> z == t) $ catMaybes $ concatMap (zipWith (calculate t) posOps . repeat) $ permutations xs
+
+getBest xs t = getShortest $ getClosest xs
+  where getClosest = filter ( bestValue xs t ==)
         getShortest = minimumBy (comparing (\(x,_,_) -> length x))
 
+bestValue xs t = minimumBy (comparing (\(_,_,x) -> abs (x - t))) xs
+
+countdown :: [Double] -> Double -> String
+countdown xs t = case getResults xs t of [] -> "Unsolvable"
+                                         xs -> unwords $ prettify $ getBest xs t
+
+
 str2D :: [String] -> [Double]
-str2D = foldr (\x acc -> (read x :: Double) : acc) []
+str2D = map fst . concatMap (\x -> (reads x :: [(Double, String)]))
+
+argMin xs
+  | length xs < 2 = "You must supply more than two numbers"
+  | otherwise = countdown (tail xs) (head xs)
 
 main :: IO ()
 main = do
   args <- fmap str2D getArgs
-  let solution = countdown (tail args) (head args)
+  let solution = argMin args
   putStrLn solution
+
