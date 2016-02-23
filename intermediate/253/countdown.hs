@@ -43,7 +43,7 @@ combine xs ys = ["("]++(combine (init xs) (init ys))++[")"]++[last ys,last xs]
 prettify :: Result -> [String]
 prettify (x,y,z) = combine (map (show . truncate) x) y ++ ["=",show z]
 
-getResults xs t = catMaybes $ concatMap (zipWith (calculate t) posOps . repeat) $ permutations xs
+getResults xs t = catMaybes  [ calculate t y x | x <- (permutations xs), y <- posOps]
   where posOps = allCombos (length xs - 1) ops
 
 getBest xs t = getShortest $ getClosest xs
@@ -67,6 +67,5 @@ argMin xs
 main :: IO ()
 main = do
   args <- fmap str2D getArgs
-  let solution = argMin args
-  putStrLn solution
+  putStrLn $ argMin args
 
